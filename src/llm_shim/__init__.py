@@ -18,8 +18,8 @@ def create_app() -> FastAPI:
     """
     application = FastAPI(title="llm-shim", version=version("llm-shim"))
 
-    @application.get("/livez")
-    @application.get("/healthz")
+    @application.get("/livez", include_in_schema=False)
+    @application.get("/healthz", include_in_schema=False)
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
