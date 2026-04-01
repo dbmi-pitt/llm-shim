@@ -1,6 +1,8 @@
 """Configuration models and helpers."""
 
+import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import instructor
@@ -15,7 +17,17 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-__all__ = ["InstructorSettings", "Settings", "get_settings"]
+__all__ = ["InstructorSettings", "Settings", "get_data_dir", "get_settings"]
+
+
+def get_data_dir() -> Path:
+    """Return the path to the data from the environment or default location.
+
+    Returns:
+        Path: Path to the data directory where config.yaml should exist.
+    """
+    data_dir = os.getenv("LLM_SHIM_DATA_DIR", "")
+    return Path(data_dir)
 
 
 class InstructorSettings(BaseModel):
@@ -134,7 +146,9 @@ class Settings(BaseSettings):
         """Customize the order of configuration sources."""
         return (
             init_settings,
-            YamlConfigSettingsSource(settings_cls, yaml_file="config.yaml"),
+            YamlConfigSettingsSource(
+                settings_cls, yaml_file=get_data_dir() / "config.yaml"
+            ),
             EnvSettingsSource(
                 settings_cls,
                 env_prefix="LLM_SHIM_",
