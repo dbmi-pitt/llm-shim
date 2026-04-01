@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from llm_shim.api import chat
-from llm_shim.api.models import ChatCompletionRequest, ChatMessage
+from llm_shim.api.schemas.openai import ChatCompletionRequest, ChatMessage
 from llm_shim.services.chat import ChatService
 
 

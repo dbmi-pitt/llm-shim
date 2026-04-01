@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from llm_shim.api.chat import router as chat_router
 from llm_shim.api.embeddings import router as embeddings_router
+from llm_shim.api.models import router as models_router
 
 __all__ = ["app", "create_app"]
 
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
 
     application.include_router(chat_router)
     application.include_router(embeddings_router)
+    application.include_router(models_router)
     return application
 
 

@@ -3,7 +3,7 @@ from typing import Any, cast
 import pytest
 from pydantic import BaseModel
 
-from llm_shim.api.models import (
+from llm_shim.api.schemas.openai import (
     ChatCompletionRequest,
     ChatMessage,
     ResponseFormatJsonSchema,

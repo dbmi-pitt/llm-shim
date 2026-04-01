@@ -117,6 +117,20 @@ class Settings(BaseSettings):
         """Resolve provider for embedding model routing."""
         return self.resolve_provider(requested_model=requested_model, mode="embedding")
 
+    def list_chat_models(self) -> list[tuple[str, str]]:
+        """Return configured chat model patterns as (provider_id, model)."""
+        models: list[tuple[str, str]] = []
+        for provider_id, provider in self.providers.items():
+            models.extend((provider_id, model) for model in provider.chat_models)
+        return models
+
+    def list_embedding_models(self) -> list[tuple[str, str]]:
+        """Return configured embedding model patterns as (provider_id, model)."""
+        models: list[tuple[str, str]] = []
+        for provider_id, provider in self.providers.items():
+            models.extend((provider_id, model) for model in provider.embedding_models)
+        return models
+
     @model_validator(mode="before")
     @classmethod
     def parse_provider_entries(cls, data: Any) -> Any:

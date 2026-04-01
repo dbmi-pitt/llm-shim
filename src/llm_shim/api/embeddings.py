@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from llm_shim.api.models import EmbeddingsRequest, EmbeddingsResponse
+from llm_shim.api.schemas.openai import EmbeddingsRequest, EmbeddingsResponse
 from llm_shim.services.embeddings import EmbeddingsService
 
 __all__ = ["router"]

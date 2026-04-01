@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from llm_shim.api.models import (
+from llm_shim.api.schemas.openai import (
     ChatCompletionRequest,
     ChatCompletionResponse,
 )

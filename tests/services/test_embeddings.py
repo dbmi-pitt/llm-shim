@@ -2,7 +2,7 @@ from typing import Any, cast
 
 import pytest
 
-from llm_shim.api.models import EmbeddingsRequest
+from llm_shim.api.schemas.openai import EmbeddingsRequest
 from llm_shim.services.embeddings import EmbeddingsService
 
 

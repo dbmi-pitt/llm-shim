@@ -6,7 +6,7 @@ from typing import Any, cast
 from pydantic_ai import Embedder
 from pydantic_ai.embeddings import EmbeddingSettings
 
-from llm_shim.api.models import (
+from llm_shim.api.schemas.openai import (
     EmbeddingDatum,
     EmbeddingsRequest,
     EmbeddingsResponse,

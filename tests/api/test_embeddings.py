@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from llm_shim.api import embeddings
-from llm_shim.api.models import EmbeddingsRequest
+from llm_shim.api.schemas.openai import EmbeddingsRequest
 from llm_shim.services.embeddings import EmbeddingsService
 
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
-from llm_shim.api.models import (
+from llm_shim.api.schemas.openai import (
     ChatCompletionChoice,
     ChatCompletionRequest,
     ChatCompletionResponse,

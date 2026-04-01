@@ -35,6 +35,7 @@ def test_app_has_routers_configured(client: Any | None = None) -> None:
     routes = _route_paths()
     assert "/v1/chat/completions" in routes
     assert "/v1/embeddings" in routes
+    assert "/v1/models" in routes
 
 
 def test_health_endpoints() -> None:
