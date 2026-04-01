@@ -1,6 +1,6 @@
 # llm-shim
 
-OpenAI-compatible API shim for routing chat and embeddings requests to one or more LLM providers via [Instructor](https://python.useinstructor.com/).
+OpenAI-compatible API shim for routing chat and embeddings requests to one or more LLM providers via [pydantic-ai](https://ai.pydantic.dev/).
 
 ## Endpoints
 
@@ -42,16 +42,39 @@ uv run main.py
 
 ## Configuration
 
-WIP
+Configuration uses a required top-level `providers` map keyed by pydantic-ai
+provider IDs. Each provider has separate chat and embeddings model patterns
+(exact or wildcard) plus optional per-provider env/settings:
 
-## Model routing rules
+```yaml
+providers:
+	openai:
+		chat_models: ["gpt-*"]
+		embedding_models: ["text-embedding-3-*"]
+		chat_model_settings: {}
+		embedding_model_settings: {}
+		env:
+			OPENAI_API_KEY: "sk-..."
 
-Incoming `model` is resolved in this order:
+	bedrock:
+		chat_models: ["anthropic.claude*"]
+		embedding_models: ["amazon.titan-embed-text-*"]
+		env:
+			AWS_ACCESS_KEY_ID: "ak-..."
+			AWS_SECRET_ACCESS_KEY: "sk-..."
+			AWS_DEFAULT_REGION: "us-east-1"
 
-1. If omitted: use `LLM_SHIM_DEFAULT_PROVIDER`
-2. If it matches a configured provider alias: use that provider
-3. If it exactly matches a configured provider model string: use that provider
-4. Otherwise: return `400`
+server:
+	host: "0.0.0.0"
+	port: 8000
+```
+
+Routing behavior:
+
+- Chat requests match `providers.<id>.chat_models` in order.
+- Embeddings requests match `providers.<id>.embedding_models` in order.
+- Exact strings are supported (`"gpt-4o-mini"`) as well as wildcards (`"haiku*"`, `"*"`).
+- If `model` is omitted, the first exact (non-wildcard) pattern is used for that route type.
 
 ## API examples
 
@@ -61,7 +84,7 @@ Incoming `model` is resolved in this order:
 curl -s http://localhost:8000/v1/chat/completions \
 	-H 'Content-Type: application/json' \
 	-d '{
-		"model": "default",
+		"model": "gpt-4o-mini",
 		"messages": [
 			{"role": "user", "content": "Testing..."}
 		]
@@ -74,7 +97,7 @@ curl -s http://localhost:8000/v1/chat/completions \
 curl -s http://localhost:8000/v1/chat/completions \
 	-H 'Content-Type: application/json' \
 	-d '{
-		"model": "default",
+		"model": "gpt-4o-mini",
 		"messages": [
 			{"role": "user", "content": "Return a short summary and confidence."}
 		],
@@ -103,7 +126,7 @@ curl -s http://localhost:8000/v1/chat/completions \
 curl -s http://localhost:8000/v1/embeddings \
 	-H 'Content-Type: application/json' \
 	-d '{
-		"model": "default",
+		"model": "text-embedding-3-small",
 		"input": "llm-shim"
 	}'
 ```

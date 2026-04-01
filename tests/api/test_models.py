@@ -80,8 +80,8 @@ def test_chat_completion_request_extra_fields_allowed() -> None:
     assert hasattr(request, "frequency_penalty")
 
 
-def test_chat_completion_request_instructor_kwargs() -> None:
-    """instructor_create_kwargs should format correctly."""
+def test_chat_completion_request_chat_kwargs() -> None:
+    """chat_kwargs should format correctly."""
     request = ChatCompletionRequest(
         messages=[
             ChatMessage(role="system", content="You are helpful"),
@@ -93,7 +93,7 @@ def test_chat_completion_request_instructor_kwargs() -> None:
         user="user-1",
     )
 
-    kwargs = request.instructor_create_kwargs()
+    kwargs = request.chat_kwargs()
 
     assert kwargs["messages"] == [
         {"role": "system", "content": "You are helpful"},
@@ -105,13 +105,13 @@ def test_chat_completion_request_instructor_kwargs() -> None:
     assert kwargs["user"] == "user-1"
 
 
-def test_chat_completion_request_instructor_kwargs_excludes_none() -> None:
-    """instructor_create_kwargs should exclude None values."""
+def test_chat_completion_request_chat_kwargs_excludes_none() -> None:
+    """chat_kwargs should exclude None values."""
     request = ChatCompletionRequest(
         messages=[ChatMessage(role="user", content="hello")],
     )
 
-    kwargs = request.instructor_create_kwargs()
+    kwargs = request.chat_kwargs()
 
     assert "temperature" not in kwargs
     assert "top_p" not in kwargs
@@ -360,37 +360,6 @@ def test_embeddings_response() -> None:
     assert response.model == "embedding-model"
     assert len(response.data) == 2
     assert response.data[0].object == "embedding"
-
-
-def test_embeddings_request_provider_create_kwargs() -> None:
-    """EmbeddingsRequest.provider_create_kwargs should build kwargs correctly."""
-    request = EmbeddingsRequest(
-        input=["hello", "world"],
-        dimensions=512,
-        encoding_format="float",
-        user="user-1",
-    )
-
-    kwargs = request.provider_create_kwargs("ada-002")
-
-    assert kwargs["model"] == "ada-002"
-    assert kwargs["input"] == ["hello", "world"]
-    assert kwargs["dimensions"] == 512
-    assert kwargs["encoding_format"] == "float"
-    assert kwargs["user"] == "user-1"
-
-
-def test_embeddings_request_provider_create_kwargs_minimal() -> None:
-    """provider_create_kwargs should exclude None values."""
-    request = EmbeddingsRequest(input="text")
-
-    kwargs = request.provider_create_kwargs("model-1")
-
-    assert kwargs["model"] == "model-1"
-    assert kwargs["input"] == "text"
-    assert "dimensions" not in kwargs
-    assert "encoding_format" not in kwargs
-    assert "user" not in kwargs
 
 
 def test_json_schema_model_factory_unknown_type() -> None:

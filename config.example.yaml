@@ -1,37 +1,29 @@
-default_provider: "default" # Fallback provider when `request.model` is omitted
-
 providers:
-  default:
-    model: "some-provider/some-model:version"
+  openai:
+    chat_models: ["gpt-*"]
+    embedding_models: ["text-embedding-3-*"]
+    chat_model_settings: {}
+    embedding_model_settings: {}
+    env:
+      OPENAI_API_KEY: "sk-..."
 
-  # bedrock-meta-llama3-8b-instruct-v1:
-  #   model: "bedrock/meta.llama3-8b-instruct-v1:0"
-  #   mode: "bedrock_json"
-  #   extra:
-  #     region: "us-east-1"
-  #     aws_access_key_id: "ak-..."
-  #     aws_secret_access_key: "sk-..."
-  #     modelId: "meta.llama3-8b-instruct-v1:0"
+  bedrock:
+    chat_models: ["anthropic.claude*"]
+    embedding_models: ["amazon.titan-embed-text-*"]
+    chat_model_settings: {}
+    embedding_model_settings: {}
+    env:
+      AWS_ACCESS_KEY_ID: "ak-..."
+      AWS_SECRET_ACCESS_KEY: "sk-..."
+      AWS_DEFAULT_REGION: "us-east-1"
 
-  # bedrock-amazon.titan-embed-text-v2:
-  #   model: "bedrock/amazon.titan-embed-text-v2:0"
-  #   extra:
-  #     region: "us-east-1"
-  #     aws_access_key_id: "ak-..."
-  #     aws_secret_access_key: "sk-..."
-  #     modelId: "amazon.titan-embed-text-v2:0"
-
-  # google-gemini-3-flash-preview:
-  #   model: "google/gemini-3-flash-preview"
-  #   extra:
-  #     api_key: "sk-..."
-
-  # openai-gpt-4:
-  #   model: "openai/gpt-4"
-  #   extra:
-  #     api_key: "sk-..."
-  #     temperature: 0.7
-  #     max_tokens: 2048
+  google-gla:
+    chat_models: ["gemini-*"]
+    embedding_models: ["gemini-embedding-*"]
+    chat_model_settings: {}
+    embedding_model_settings: {}
+    env:
+      GOOGLE_API_KEY: "AIza..."
 
 server:
   host: "0.0.0.0"

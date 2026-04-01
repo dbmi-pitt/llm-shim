@@ -1,13 +1,11 @@
 """Configuration models and helpers."""
 
+import fnmatch
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
-import instructor
-from instructor import Mode
-from instructor.models import KnownModelName
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import (
     BaseSettings,
@@ -17,7 +15,7 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
-__all__ = ["InstructorSettings", "Settings", "get_data_dir", "get_settings"]
+__all__ = ["ProviderSettings", "Settings", "get_data_dir", "get_settings"]
 
 
 def get_data_dir() -> Path:
@@ -30,50 +28,28 @@ def get_data_dir() -> Path:
     return Path(data_dir)
 
 
-class InstructorSettings(BaseModel):
-    """Configuration for a single Instructor client."""
+class ProviderSettings(BaseModel):
+    """Configuration for a single provider routing entry."""
 
-    model: KnownModelName | str
-    mode: Mode | None = None
-    extra: dict[str, Any] = Field(default_factory=dict)
-
-    @property
-    def provider_name(self) -> str:
-        """Return the configured provider name."""
-        model = str(self.model)
-        if "/" in model:
-            return model.split("/", maxsplit=1)[0]
-        return model
-
-    @property
-    def provider_model_name(self) -> str:
-        """Return provider-native model name without provider prefix."""
-        model = str(self.model)
-        if "/" in model:
-            return model.split("/", maxsplit=1)[1]
-        return model
-
-    def instructor_kwargs(self) -> dict[str, Any]:
-        """Return kwargs forwarded to instructor.from_provider."""
-        kwargs: dict[str, Any] = dict(self.extra)
-        if self.mode is not None:
-            kwargs["mode"] = self.mode
-        return kwargs
-
-    def create_async_client(self) -> instructor.AsyncInstructor:
-        """Create an async Instructor client."""
-        return instructor.from_provider(
-            str(self.model),
-            async_client=True,
-            **self.instructor_kwargs(),
-        )
+    chat_models: str | list[str] = Field(default_factory=list)
+    embedding_models: str | list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict)
+    chat_model_settings: dict[str, Any] = Field(default_factory=dict)
+    embedding_model_settings: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
-    def validate_model_format(self) -> InstructorSettings:
-        """Require provider/model format expected by instructor.from_provider."""
-        if "/" not in str(self.model):
+    def validate_models(self) -> ProviderSettings:
+        """Normalize model patterns and require at least one route."""
+
+        def normalize(value: str | list[str]) -> list[str]:
+            items = [value] if isinstance(value, str) else value
+            return [item for item in items if item]
+
+        self.chat_models = normalize(self.chat_models)
+        self.embedding_models = normalize(self.embedding_models)
+        if not self.chat_models and not self.embedding_models:
             raise ValueError(
-                "LLM_SHIM_INSTRUCTOR__MODEL must use provider/model format"
+                "Provider must define at least one of chat_models or embedding_models"
             )
         return self
 
@@ -93,44 +69,74 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore")
 
-    default_provider: str = "default"
-    providers: dict[str, InstructorSettings] = Field(default_factory=dict)
+    providers: dict[str, ProviderSettings] = Field(default_factory=dict)
     server: ServerSettings = Field(default_factory=ServerSettings)
 
     def resolve_provider(
         self,
         requested_model: str | None,
-    ) -> tuple[str, InstructorSettings]:
-        """Resolve configured provider by alias or exact configured model id."""
-        if requested_model is None:
-            provider_name = self.default_provider
-            return provider_name, self.providers[provider_name]
+        mode: Literal["chat", "embedding"],
+    ) -> tuple[str, str, ProviderSettings]:
+        """Resolve provider id and concrete model from mode-specific patterns."""
+        field_name = "chat_models" if mode == "chat" else "embedding_models"
 
-        if requested_model in self.providers:
-            provider_name = requested_model
-            return provider_name, self.providers[provider_name]
+        if requested_model is not None:
+            for provider_id, provider in self.providers.items():
+                patterns = getattr(provider, field_name)
+                if any(
+                    fnmatch.fnmatchcase(requested_model, pattern)
+                    for pattern in patterns
+                ):
+                    return provider_id, requested_model, provider
 
-        for provider_name, provider in self.providers.items():
-            if requested_model == str(provider.model):
-                return provider_name, provider
+            raise ValueError(
+                f"Requested model is not configured for {field_name}. "
+                f"Add a matching provider {field_name} pattern."
+            )
+
+        for provider_id, provider in self.providers.items():
+            patterns = getattr(provider, field_name)
+            for pattern in patterns:
+                if not any(token in pattern for token in ("*", "?", "[")):
+                    return provider_id, pattern, provider
 
         raise ValueError(
-            "Requested model is not configured. Use a provider alias or exact "
-            "configured model id."
+            f"Request model is required when provider {field_name} use wildcard "
+            "patterns"
         )
 
-    @model_validator(mode="after")
-    def validate_providers(self) -> Settings:
-        """Validate multi-provider Instructor configuration."""
-        if not self.providers:
-            raise ValueError(
-                "LLM_SHIM_PROVIDERS must define at least one configured provider"
-            )
+    def resolve_chat_provider(
+        self, requested_model: str | None
+    ) -> tuple[str, str, ProviderSettings]:
+        """Resolve provider for chat model routing."""
+        return self.resolve_provider(requested_model=requested_model, mode="chat")
 
-        if self.default_provider not in self.providers:
-            raise ValueError(
-                "LLM_SHIM_DEFAULT_PROVIDER must be a key in LLM_SHIM_PROVIDERS"
-            )
+    def resolve_embedding_provider(
+        self, requested_model: str | None
+    ) -> tuple[str, str, ProviderSettings]:
+        """Resolve provider for embedding model routing."""
+        return self.resolve_provider(requested_model=requested_model, mode="embedding")
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_provider_entries(cls, data: Any) -> Any:
+        """Enforce provider nesting and reject removed schemas."""
+        if not isinstance(data, dict):
+            return data
+
+        if "global_config" in data or "profiles" in data:
+            raise ValueError("global_config/profiles schema is no longer supported")
+
+        if "providers" not in data:
+            raise ValueError("Configuration must define providers as a top-level key")
+
+        return data
+
+    @model_validator(mode="after")
+    def validate_profiles(self) -> Settings:
+        """Validate configured providers."""
+        if not self.providers:
+            raise ValueError("At least one provider entry must be configured")
 
         return self
 

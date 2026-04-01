@@ -2,7 +2,6 @@
 
 from typing import Any, Literal, cast
 
-from instructor.models import KnownModelName
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 
@@ -43,7 +42,7 @@ class ChatCompletionRequest(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    model: KnownModelName | str | None = None
+    model: str | None = None
     messages: list[ChatMessage]
     temperature: float | None = None
     top_p: float | None = None
@@ -53,8 +52,8 @@ class ChatCompletionRequest(BaseModel):
     response_format: ResponseFormatText | ResponseFormatJsonSchema | None = None
     user: str | None = None
 
-    def instructor_create_kwargs(self) -> dict[str, Any]:
-        """Build kwargs forwarded to Instructor client.create for chat."""
+    def chat_kwargs(self) -> dict[str, Any]:
+        """Build kwargs forwarded to the pydantic-ai chat model."""
         kwargs: dict[str, Any] = {
             "messages": [
                 message.model_dump(exclude_none=True) for message in self.messages
@@ -100,7 +99,7 @@ class ChatCompletionResponse(BaseModel):
     id: str
     object: Literal["chat.completion"] = "chat.completion"
     created: int
-    model: KnownModelName | str
+    model: str
     choices: list[ChatCompletionChoice]
     usage: ChatCompletionUsage
 
@@ -110,25 +109,11 @@ class EmbeddingsRequest(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    model: KnownModelName | str | None = None
+    model: str | None = None
     input: str | list[str]
     encoding_format: Literal["float"] | None = None
     dimensions: int | None = None
     user: str | None = None
-
-    def provider_create_kwargs(self, provider_model_name: str) -> dict[str, Any]:
-        """Build kwargs forwarded to provider embeddings create call."""
-        kwargs: dict[str, Any] = {
-            "model": provider_model_name,
-            "input": self.input,
-        }
-        if self.dimensions is not None:
-            kwargs["dimensions"] = self.dimensions
-        if self.encoding_format is not None:
-            kwargs["encoding_format"] = self.encoding_format
-        if self.user is not None:
-            kwargs["user"] = self.user
-        return kwargs
 
 
 class EmbeddingDatum(BaseModel):
@@ -151,7 +136,7 @@ class EmbeddingsResponse(BaseModel):
 
     object: Literal["list"] = "list"
     data: list[EmbeddingDatum]
-    model: KnownModelName | str
+    model: str
     usage: EmbeddingsUsage
 
 
