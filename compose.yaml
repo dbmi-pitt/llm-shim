@@ -1,0 +1,8 @@
+services:
+  llm-shim:
+    build: .
+    ports:
+      - 8000:8000
+    volumes:
+      - ./data:/config
+    restart: unless-stopped
