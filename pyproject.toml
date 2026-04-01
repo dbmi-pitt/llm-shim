@@ -51,6 +51,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "--cov=src"
 asyncio_mode = "auto"
+filterwarnings = ["ignore::DeprecationWarning:google.genai.types"]
 
 [tool.uv.build-backend]
 module-name = "llm_shim"
