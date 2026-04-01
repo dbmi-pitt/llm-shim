@@ -1,0 +1,41 @@
+default_provider: "default" # Fallback provider when `request.model` is omitted
+
+providers:
+  default:
+    model: "some-provider/some-model:version"
+
+  # bedrock-meta-llama3-8b-instruct-v1:
+  #   model: "bedrock/meta.llama3-8b-instruct-v1:0"
+  #   mode: "bedrock_json"
+  #   extra:
+  #     region: "us-east-1"
+  #     aws_access_key_id: "ak-..."
+  #     aws_secret_access_key: "sk-..."
+  #     modelId: "meta.llama3-8b-instruct-v1:0"
+
+  # bedrock-amazon.titan-embed-text-v2:
+  #   model: "bedrock/amazon.titan-embed-text-v2:0"
+  #   extra:
+  #     region: "us-east-1"
+  #     aws_access_key_id: "ak-..."
+  #     aws_secret_access_key: "sk-..."
+  #     modelId: "amazon.titan-embed-text-v2:0"
+
+  # google-gemini-3-flash-preview:
+  #   model: "google/gemini-3-flash-preview"
+  #   extra:
+  #     api_key: "sk-..."
+
+  # openai-gpt-4:
+  #   model: "openai/gpt-4"
+  #   extra:
+  #     api_key: "sk-..."
+  #     temperature: 0.7
+  #     max_tokens: 2048
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  reload: false
+  workers: 1
+  log_level: "info"

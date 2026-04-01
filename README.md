@@ -24,12 +24,12 @@ uv sync
 2. Create local environment config:
 
 ```bash
-cp .env.example .env
+cp config.example.yaml config.yaml
 ```
 
-3. Edit `.env` with your model + API key.
+1. Edit `config.yaml` with your model and provider details.
 
-4. Start server:
+2. Start server:
 
 ```bash
 uv run main.py
@@ -42,24 +42,7 @@ uv run main.py
 
 ## Configuration
 
-Settings use `LLM_SHIM_` prefix and nested keys with `__`.
-
-Required minimum:
-
-```dotenv
-LLM_SHIM_DEFAULT_PROVIDER=default
-
-LLM_SHIM_PROVIDERS__default__MODEL=openai/gpt-4.1-mini
-LLM_SHIM_PROVIDERS__default__API_KEY=sk-...
-
-LLM_SHIM_SERVER__HOST=0.0.0.0
-LLM_SHIM_SERVER__PORT=8000
-LLM_SHIM_SERVER__RELOAD=false
-LLM_SHIM_SERVER__WORKERS=1
-LLM_SHIM_SERVER__LOG_LEVEL=info
-```
-
-Model values must use `provider/model` format, for example `openai/gpt-4.1-mini`.
+WIP
 
 ## Model routing rules
 

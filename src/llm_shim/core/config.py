@@ -7,7 +7,13 @@ import instructor
 from instructor import Mode
 from instructor.models import KnownModelName
 from pydantic import BaseModel, Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    EnvSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
 
 __all__ = ["InstructorSettings", "Settings", "get_settings"]
 
@@ -16,10 +22,8 @@ class InstructorSettings(BaseModel):
     """Configuration for a single Instructor client."""
 
     model: KnownModelName | str
-    api_key: str | None = None
-    base_url: str | None = None
     mode: Mode | None = None
-    extra: dict[str, object] = Field(default_factory=dict)
+    extra: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def provider_model_name(self) -> str:
@@ -32,10 +36,6 @@ class InstructorSettings(BaseModel):
     def instructor_kwargs(self) -> dict[str, Any]:
         """Return kwargs forwarded to instructor.from_provider."""
         kwargs: dict[str, Any] = dict(self.extra)
-        if self.api_key is not None:
-            kwargs["api_key"] = self.api_key
-        if self.base_url is not None:
-            kwargs["base_url"] = self.base_url
         if self.mode is not None:
             kwargs["mode"] = self.mode
         return kwargs
@@ -71,32 +71,11 @@ class ServerSettings(BaseModel):
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
+    model_config = SettingsConfigDict(extra="ignore")
+
     default_provider: str = "default"
     providers: dict[str, InstructorSettings] = Field(default_factory=dict)
     server: ServerSettings = Field(default_factory=ServerSettings)
-
-    model_config = SettingsConfigDict(
-        case_sensitive=False,
-        env_file=".env",
-        env_prefix="LLM_SHIM_",
-        env_nested_delimiter="__",
-        extra="ignore",
-    )
-
-    @model_validator(mode="after")
-    def validate_providers(self) -> Settings:
-        """Validate multi-provider Instructor configuration."""
-        if not self.providers:
-            raise ValueError(
-                "LLM_SHIM_PROVIDERS must define at least one configured provider"
-            )
-
-        if self.default_provider not in self.providers:
-            raise ValueError(
-                "LLM_SHIM_DEFAULT_PROVIDER must be a key in LLM_SHIM_PROVIDERS"
-            )
-
-        return self
 
     def resolve_provider(
         self,
@@ -118,6 +97,42 @@ class Settings(BaseSettings):
         raise ValueError(
             "Requested model is not configured. Use a provider alias or exact "
             "configured model id."
+        )
+
+    @model_validator(mode="after")
+    def validate_providers(self) -> Settings:
+        """Validate multi-provider Instructor configuration."""
+        if not self.providers:
+            raise ValueError(
+                "LLM_SHIM_PROVIDERS must define at least one configured provider"
+            )
+
+        if self.default_provider not in self.providers:
+            raise ValueError(
+                "LLM_SHIM_DEFAULT_PROVIDER must be a key in LLM_SHIM_PROVIDERS"
+            )
+
+        return self
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customize the order of configuration sources."""
+        return (
+            init_settings,
+            YamlConfigSettingsSource(settings_cls, yaml_file="config.yaml"),
+            EnvSettingsSource(
+                settings_cls,
+                env_prefix="LLM_SHIM_",
+                env_nested_delimiter="__",
+                env_parse_none_str="null",
+            ),
         )
 
 

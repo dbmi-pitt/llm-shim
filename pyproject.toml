@@ -23,7 +23,7 @@ classifiers = [
 
 dependencies = [
     "fastapi[standard-no-fastapi-cloud-cli]>=0.135.2",
-    "instructor[anthropic,google-genai,mistralai,vertexai,xai]>=1.14.5",
+    "instructor[anthropic,bedrock,google-genai,mistralai,vertexai,xai]>=1.14.5",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
 ]
