@@ -1,5 +1,6 @@
 """Service for OpenAI-compatible chat completions."""
 
+import logging
 import time
 from functools import lru_cache
 from typing import Any, cast
@@ -7,6 +8,7 @@ from uuid import uuid4
 
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
+from pydantic_ai.usage import RunUsage
 
 from llm_shim.api.schemas.openai import (
     ChatCompletionChoice,
@@ -16,7 +18,10 @@ from llm_shim.api.schemas.openai import (
     ChatCompletionUsage,
 )
 from llm_shim.core.config import Settings, get_settings
+from llm_shim.core.exceptions import ProviderCallError
 from llm_shim.core.utils import environment_override_lock, patched_environ
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -60,6 +65,7 @@ class ChatService:
     def _build_response(
         configured_model: str,
         content: str,
+        usage: RunUsage,
     ) -> ChatCompletionResponse:
         """Build an OpenAI-compatible chat completion response."""
         return ChatCompletionResponse(
@@ -73,7 +79,11 @@ class ChatService:
                     finish_reason="stop",
                 ),
             ],
-            usage=ChatCompletionUsage(),
+            usage=ChatCompletionUsage(
+                prompt_tokens=usage.input_tokens,
+                completion_tokens=usage.output_tokens,
+                total_tokens=usage.input_tokens + usage.output_tokens,
+            ),
         )
 
     @staticmethod
@@ -87,14 +97,14 @@ class ChatService:
         model_name: str,
         prompt: str,
         model_settings: ModelSettings | None,
-    ) -> str:
+    ) -> tuple[str, RunUsage]:
         """Execute plain text generation with pydantic-ai."""
         result = await Agent(
             model_name,
             output_type=str,
             model_settings=model_settings,
         ).run(prompt)
-        return str(result.output)
+        return str(result.output), result.usage()
 
     async def create(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         """Create a provider chat completion normalized to OpenAI response format.
@@ -119,17 +129,27 @@ class ChatService:
         try:
             async with environment_override_lock:
                 with patched_environ(provider.env):
-                    response_text = await self._run_text_model(
+                    response_text, usage = await self._run_text_model(
                         model_name=configured_model,
                         prompt=prompt,
                         model_settings=model_settings,
                     )
         except Exception as error:
-            raise RuntimeError(f"Provider chat completion failed: {error}") from error
+            logger.exception("Chat completion failed for %s", configured_model)
+            raise ProviderCallError(
+                f"Provider chat completion failed: {error}"
+            ) from error
 
+        logger.info(
+            "Chat completion for %s: %d input, %d output tokens",
+            configured_model,
+            usage.input_tokens,
+            usage.output_tokens,
+        )
         return self._build_response(
             configured_model=configured_model,
             content=response_text,
+            usage=usage,
         )
 
 

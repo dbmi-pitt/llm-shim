@@ -1,10 +1,12 @@
 """Service for OpenAI-compatible embeddings responses."""
 
+import logging
 from functools import lru_cache
 from typing import Any, cast
 
 from pydantic_ai import Embedder
 from pydantic_ai.embeddings import EmbeddingSettings
+from pydantic_ai.usage import RequestUsage
 
 from llm_shim.api.schemas.openai import (
     EmbeddingDatum,
@@ -13,7 +15,10 @@ from llm_shim.api.schemas.openai import (
     EmbeddingsUsage,
 )
 from llm_shim.core.config import Settings, get_settings
+from llm_shim.core.exceptions import BadRequestError, ProviderCallError
 from llm_shim.core.utils import environment_override_lock, patched_environ
+
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingsService:
@@ -27,6 +32,7 @@ class EmbeddingsService:
         self,
         configured_model: str,
         vectors: list[list[float]],
+        usage: RequestUsage,
     ) -> EmbeddingsResponse:
         """Build an OpenAI-compatible response from provider embedding vectors."""
         return EmbeddingsResponse(
@@ -35,7 +41,10 @@ class EmbeddingsService:
                 for index, vector in enumerate(vectors)
             ],
             model=configured_model,
-            usage=EmbeddingsUsage(),
+            usage=EmbeddingsUsage(
+                prompt_tokens=usage.input_tokens,
+                total_tokens=usage.input_tokens,
+            ),
         )
 
     async def _run_embeddings(
@@ -43,14 +52,14 @@ class EmbeddingsService:
         model_name: str,
         inputs: list[str],
         model_settings: EmbeddingSettings | None,
-    ) -> list[list[float]]:
+    ) -> tuple[list[list[float]], RequestUsage]:
         """Execute embedding generation with pydantic-ai."""
         result = await Embedder(model_name).embed_documents(
             inputs,
             settings=model_settings,
         )
         vectors = [list(vector) for vector in result.embeddings]
-        return vectors
+        return vectors, result.usage
 
     @staticmethod
     def _build_embedding_settings(
@@ -89,19 +98,26 @@ class EmbeddingsService:
         try:
             async with environment_override_lock:
                 with patched_environ(provider.env):
-                    vectors = await self._run_embeddings(
+                    vectors, usage = await self._run_embeddings(
                         model_name=configured_model,
                         inputs=inputs,
                         model_settings=model_settings,
                     )
-        except ValueError:
+        except BadRequestError, ProviderCallError:
             raise
         except Exception as error:
-            raise RuntimeError(f"Provider embeddings failed: {error}") from error
+            logger.exception("Embeddings failed for %s", configured_model)
+            raise ProviderCallError(f"Provider embeddings failed: {error}") from error
 
+        logger.info(
+            "Embeddings for %s: %d input tokens",
+            configured_model,
+            usage.input_tokens,
+        )
         return self._build_response(
             configured_model=configured_model,
             vectors=vectors,
+            usage=usage,
         )
 
 
