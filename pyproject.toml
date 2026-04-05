@@ -40,6 +40,20 @@ quote-style = "double"
 [tool.ruff.lint]
 select = ["B", "D", "DOC", "E", "F", "I", "RUF", "SIM", "UP", "W"]
 
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
+
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["D"]
 

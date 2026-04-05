@@ -15,6 +15,8 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 
+from llm_shim.core.exceptions import BadRequestError
+
 __all__ = ["ProviderSettings", "Settings", "get_data_dir", "get_settings"]
 
 
@@ -81,23 +83,25 @@ class Settings(BaseSettings):
         field_name = "chat_models" if mode == "chat" else "embedding_models"
 
         if requested_model is None:
-            raise ValueError(
+            raise BadRequestError(
                 "Request model is required and must use provider:model format"
             )
 
         provider_id, sep, model_name = requested_model.partition(":")
         if not sep or not provider_id or not model_name:
-            raise ValueError("Request model must use provider:model format")
+            raise BadRequestError("Request model must use provider:model format")
 
         provider = self.providers.get(provider_id)
         if provider is None:
-            raise ValueError(f"Requested provider '{provider_id}' is not configured")
+            raise BadRequestError(
+                f"Requested provider '{provider_id}' is not configured"
+            )
 
         patterns = getattr(provider, field_name)
         if any(fnmatch.fnmatchcase(model_name, pattern) for pattern in patterns):
             return provider_id, model_name, provider
 
-        raise ValueError(
+        raise BadRequestError(
             f"Requested model '{model_name}' is not configured for provider "
             f"'{provider_id}' in {field_name}"
         )
