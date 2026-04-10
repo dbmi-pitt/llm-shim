@@ -54,9 +54,16 @@ docker compose up --build
 - `providers`: a mapping of [provider names](https://ai.pydantic.dev/models/overview/) to their configuration.
   - `chat_models`: list of allowed chat model patterns (supports wildcards, example: `gpt-*`).
   - `embedding_models`: list of allowed embedding model patterns (supports wildcards, example: `text-embedding-3-*`).
+  - `backend`: optional embedding backend selector. Defaults to `pydantic_ai`; use `tei` for a HuggingFace Text Embeddings Inference endpoint.
   - `chat_model_settings`: optional kwargs to pass to chat model calls. See [pydantic-ai docs](https://ai.pydantic.dev/agent/#model-run-settings) for supported settings.
   - `embedding_model_settings`: optional kwargs to pass to embedding model calls. See [pydantic-ai docs](https://ai.pydantic.dev/embeddings/) for supported settings.
   - `env`: environment variables to set for this provider (required for things like API keys).
+  - `tei`: required when `backend: tei`.
+    - `base_url`: TEI server base URL.
+    - `endpoint`: TEI embeddings path. Defaults to `/embed`.
+    - `auth_token_env`: optional env var name whose value is sent as `Authorization: Bearer ...`.
+    - `request_timeout_seconds`: HTTP timeout for the TEI request.
+    - `input_prefix_template`: optional template used to transform each input before sending it upstream. Use `{input}` as the placeholder.
 - `server`: FastAPI server settings.
   - `host`: server host (default: `"0.0.0.0"`)
   - `port`: server port (default: 8000)
@@ -80,6 +87,18 @@ providers:
     env:
       GOOGLE_API_KEY: "AIza..."
 
+  tei-qwen:
+    backend: tei
+    embedding_models: ["Qwen/Qwen3-Embedding-0.6B"]
+    env:
+      TEI_API_TOKEN: "optional-bearer-token"
+    tei:
+      base_url: "http://embedding-box:8080"
+      endpoint: "/embed"
+      auth_token_env: "TEI_API_TOKEN"
+      request_timeout_seconds: 30
+      input_prefix_template: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: {input}"
+
 server:
   host: "0.0.0.0"
   port: 8000
@@ -94,6 +113,7 @@ server:
 - The `provider` must exist in `providers`.
 - Chat models are validated against `chat_models`, and embeddings against `embedding_models`.
 - Model patterns support exact values and wildcards (`*`) using shell-style matching.
+- `backend: tei` providers support embeddings only and call the configured TEI HTTP endpoint directly.
 
 ## Minimal API Examples
 
@@ -116,6 +136,20 @@ curl -s http://localhost:8000/v1/embeddings \
   -d '{
     "model": "openai:text-embedding-3-small",
     "input": "Hello, world!"
+  }'
+```
+
+TEI-backed embeddings through the shim:
+
+```bash
+curl -s http://localhost:8000/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "tei-qwen:Qwen/Qwen3-Embedding-0.6B",
+    "input": [
+      "What is the capital of China?",
+      "Explain gravity"
+    ]
   }'
 ```
 

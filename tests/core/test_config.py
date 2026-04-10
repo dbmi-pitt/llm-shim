@@ -46,6 +46,24 @@ def test_provider_settings_requires_non_empty_models() -> None:
         ProviderSettings(chat_models=[], embedding_models=[])
 
 
+def test_tei_provider_settings_require_tei_block() -> None:
+    with pytest.raises(ValidationError, match="must define tei settings"):
+        ProviderSettings(
+            backend="tei",
+            embedding_models=["Qwen/Qwen3-Embedding-0.6B"],
+        )
+
+
+def test_tei_provider_settings_reject_chat_models() -> None:
+    with pytest.raises(ValidationError, match="only support embedding_models"):
+        ProviderSettings(
+            backend="tei",
+            chat_models=["gpt-*"],
+            embedding_models=["Qwen/Qwen3-Embedding-0.6B"],
+            tei={"base_url": "http://tei.internal:8080"},
+        )
+
+
 def test_server_settings_defaults() -> None:
     settings = ServerSettings()
     assert settings.host == "0.0.0.0"

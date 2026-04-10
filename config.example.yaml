@@ -25,6 +25,18 @@ providers:
     env:
       GOOGLE_API_KEY: "AIza..."
 
+  tei-qwen:
+    backend: tei
+    embedding_models: ["Qwen/Qwen3-Embedding-0.6B"]
+    env:
+      TEI_API_TOKEN: "optional-bearer-token"
+    tei:
+      base_url: "http://embedding-box:8080"
+      endpoint: "/embed"
+      auth_token_env: "TEI_API_TOKEN"
+      request_timeout_seconds: 30
+      input_prefix_template: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: {input}"
+
 server:
   host: "0.0.0.0"
   port: 8000

@@ -1,9 +1,11 @@
 """Service for OpenAI-compatible embeddings responses."""
 
 import logging
+import os
 from functools import lru_cache
 from typing import Any, cast
 
+import httpx
 from pydantic_ai import Embedder
 from pydantic_ai.embeddings import EmbeddingSettings
 from pydantic_ai.usage import RequestUsage
@@ -14,7 +16,7 @@ from llm_shim.api.schemas.openai import (
     EmbeddingsResponse,
     EmbeddingsUsage,
 )
-from llm_shim.core.config import Settings, get_settings
+from llm_shim.core.config import Settings, TeiProviderSettings, get_settings
 from llm_shim.core.exceptions import BadRequestError, ProviderCallError
 from llm_shim.core.utils import environment_override_lock, patched_environ
 
@@ -62,6 +64,88 @@ class EmbeddingsService:
         return vectors, result.usage
 
     @staticmethod
+    def _build_tei_inputs(
+        inputs: list[str],
+        input_prefix_template: str | None,
+    ) -> list[str]:
+        """Apply optional per-input prompt formatting for TEI requests."""
+        if input_prefix_template is None:
+            return inputs
+        return [input_prefix_template.format(input=value) for value in inputs]
+
+    @staticmethod
+    def _build_tei_headers(tei_settings: TeiProviderSettings) -> dict[str, str]:
+        """Build HTTP headers for TEI requests."""
+        headers = {"Content-Type": "application/json"}
+        if tei_settings.auth_token_env is None:
+            return headers
+
+        auth_token = os.getenv(tei_settings.auth_token_env)
+        if not auth_token:
+            raise BadRequestError(
+                "TEI auth token env var "
+                f"'{tei_settings.auth_token_env}' is not set"
+            )
+        headers["Authorization"] = f"Bearer {auth_token}"
+        return headers
+
+    async def _run_tei_embeddings(
+        self,
+        tei_settings: TeiProviderSettings,
+        inputs: list[str],
+    ) -> tuple[list[list[float]], RequestUsage]:
+        """Execute embedding generation against a TEI HTTP endpoint."""
+        request_inputs = self._build_tei_inputs(
+            inputs=inputs,
+            input_prefix_template=tei_settings.input_prefix_template,
+        )
+        base_url = tei_settings.base_url.rstrip("/")
+        endpoint = tei_settings.endpoint
+        if not endpoint.startswith("/"):
+            endpoint = f"/{endpoint}"
+
+        async with httpx.AsyncClient(
+            timeout=tei_settings.request_timeout_seconds
+        ) as client:
+            response = await client.post(
+                f"{base_url}{endpoint}",
+                headers=self._build_tei_headers(tei_settings),
+                json={"inputs": request_inputs},
+            )
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            detail = error.response.text.strip()
+            message = f"TEI request failed with status {error.response.status_code}"
+            if detail:
+                message = f"{message}: {detail}"
+            raise ProviderCallError(message) from error
+
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise ProviderCallError("TEI response was not valid JSON") from error
+
+        if not isinstance(payload, list):
+            raise ProviderCallError("TEI response must be a JSON array")
+
+        if payload and all(isinstance(value, (int, float)) for value in payload):
+            payload = [payload]
+
+        if not all(
+            isinstance(vector, list)
+            and all(isinstance(value, (int, float)) for value in vector)
+            for vector in payload
+        ):
+            raise ProviderCallError(
+                "TEI response must be an embedding vector or list of embedding vectors"
+            )
+
+        vectors = [[float(value) for value in vector] for vector in payload]
+        return vectors, RequestUsage()
+
+    @staticmethod
     def _build_embedding_settings(
         provider_settings: dict[str, Any],
         dimensions: int | None,
@@ -98,11 +182,25 @@ class EmbeddingsService:
         try:
             async with environment_override_lock:
                 with patched_environ(provider.env):
-                    vectors, usage = await self._run_embeddings(
-                        model_name=configured_model,
-                        inputs=inputs,
-                        model_settings=model_settings,
-                    )
+                    if provider.backend == "tei":
+                        if request.dimensions is not None:
+                            raise BadRequestError(
+                                "TEI providers do not support request-level dimensions"
+                            )
+                        if provider.tei is None:
+                            raise BadRequestError(
+                                "TEI provider is missing tei configuration"
+                            )
+                        vectors, usage = await self._run_tei_embeddings(
+                            tei_settings=provider.tei,
+                            inputs=inputs,
+                        )
+                    else:
+                        vectors, usage = await self._run_embeddings(
+                            model_name=configured_model,
+                            inputs=inputs,
+                            model_settings=model_settings,
+                        )
         except BadRequestError, ProviderCallError:
             raise
         except Exception as error:

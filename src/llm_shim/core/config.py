@@ -17,7 +17,13 @@ from pydantic_settings import (
 
 from llm_shim.core.exceptions import BadRequestError
 
-__all__ = ["ProviderSettings", "Settings", "get_data_dir", "get_settings"]
+__all__ = [
+    "ProviderSettings",
+    "Settings",
+    "TeiProviderSettings",
+    "get_data_dir",
+    "get_settings",
+]
 
 
 def get_data_dir() -> Path:
@@ -30,14 +36,26 @@ def get_data_dir() -> Path:
     return Path(data_dir)
 
 
+class TeiProviderSettings(BaseModel):
+    """Configuration for a HuggingFace TEI embedding backend."""
+
+    base_url: str
+    endpoint: str = "/embed"
+    auth_token_env: str | None = None
+    request_timeout_seconds: float = 30.0
+    input_prefix_template: str | None = None
+
+
 class ProviderSettings(BaseModel):
     """Configuration for a single provider routing entry."""
 
     chat_models: str | list[str] = Field(default_factory=list)
     embedding_models: str | list[str] = Field(default_factory=list)
+    backend: Literal["pydantic_ai", "tei"] = "pydantic_ai"
     env: dict[str, str] = Field(default_factory=dict)
     chat_model_settings: dict[str, Any] = Field(default_factory=dict)
     embedding_model_settings: dict[str, Any] = Field(default_factory=dict)
+    tei: TeiProviderSettings | None = None
 
     @model_validator(mode="after")
     def validate_models(self) -> ProviderSettings:
@@ -53,6 +71,11 @@ class ProviderSettings(BaseModel):
             raise ValueError(
                 "Provider must define at least one of chat_models or embedding_models"
             )
+        if self.backend == "tei":
+            if self.chat_models:
+                raise ValueError("TEI providers only support embedding_models")
+            if self.tei is None:
+                raise ValueError("TEI providers must define tei settings")
         return self
 
 
