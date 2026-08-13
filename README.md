@@ -128,6 +128,24 @@ curl -s http://localhost:8000/v1/chat/completions \
   }'
 ```
 
+```powershell
+$body = @{
+    model = "openai:gpt-4o-mini"
+    messages = @(
+        @{
+            role = "user"
+            content = "Hello, world!"
+        }
+    )
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/v1/chat/completions" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
+```
+
 Embeddings:
 
 ```bash
@@ -137,6 +155,19 @@ curl -s http://localhost:8000/v1/embeddings \
     "model": "openai:text-embedding-3-small",
     "input": "Hello, world!"
   }'
+```
+
+```powershell
+$body = @{
+    model = "openai:text-embedding-3-small"
+    input = "Hello, world!"
+} | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod `
+    -Uri "http://localhost:8000/v1/embeddings" `
+    -Method Post `
+    -ContentType "application/json" `
+    -Body $body
 ```
 
 TEI-backed embeddings through the shim:

@@ -7,6 +7,16 @@ providers:
     env:
       OPENAI_API_KEY: "sk-..."
 
+  azure:
+    chat_models: ["gpt-*"]
+    embedding_models: ["text-embedding-3-*"]
+    chat_model_settings: {}
+    embedding_model_settings: {}
+    env:
+      AZURE_OPENAI_ENDPOINT: "https://<resource>.openai.azure.com/openai/v1/"
+      AZURE_OPENAI_API_KEY: "<api-key>"
+      OPENAI_API_VERSION: "2024-12-01-preview"
+
   bedrock:
     chat_models: ["anthropic.claude*"]
     embedding_models: ["amazon.titan-embed-text-*"]
@@ -17,6 +27,16 @@ providers:
       AWS_SECRET_ACCESS_KEY: "sk-..."
       AWS_DEFAULT_REGION: "us-east-1"
 
+  azure:
+    chat_models: ["gpt-*"]
+    embedding_models: ["text-embedding-3-*"]
+    chat_model_settings: {}
+    embedding_model_settings: {}
+    env:
+      AZURE_OPENAI_ENDPOINT: "https://<resource>.openai.azure.com/openai/v1/"
+      AZURE_OPENAI_API_KEY: "<api-key>"
+      OPENAI_API_VERSION: "2024-12-01-preview"
+      
   google-gla:
     chat_models: ["gemini-*"]
     embedding_models: ["gemini-embedding-*"]
