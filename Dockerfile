@@ -2,7 +2,8 @@ FROM alpine:3.23 AS python-builder
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-ENV UV_COMPILE_BYTECODE=1 \
+ENV UV_PYTHON=3.14 \
+    UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_PYTHON_INSTALL_DIR=/python \
