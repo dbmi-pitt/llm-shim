@@ -2,7 +2,11 @@ services:
   llm-shim:
     build: .
     ports:
-      - 8000:8000
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./data:/config
     restart: unless-stopped
+    environment:
+      # Supply real values through the shell, CI secret store, or Docker secrets.
+      LLM_SHIM_API_KEYS: ${LLM_SHIM_API_KEYS:?set an inbound shim API key}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}

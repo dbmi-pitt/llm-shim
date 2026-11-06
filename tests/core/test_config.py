@@ -41,6 +41,31 @@ def test_provider_settings_accepts_string_models_and_normalizes() -> None:
     assert provider.env["google_api_key"] == "abc"
 
 
+def test_provider_resolves_non_secret_and_secret_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Static provider settings and secret references remain distinct."""
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "test-access-key")
+    provider = ProviderSettings(
+        chat_models=["anthropic.claude-*"],
+        environment={"AWS_DEFAULT_REGION": "us-west-2"},
+        env={"AWS_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID"},
+    )
+    assert provider.environment_overrides() == {
+        "AWS_DEFAULT_REGION": "us-west-2",
+        "AWS_ACCESS_KEY_ID": "test-access-key",
+    }
+
+
+def test_provider_rejects_overlapping_environment_names() -> None:
+    with pytest.raises(ValidationError, match="may not set the same variable"):
+        ProviderSettings(
+            chat_models=["gpt-*"],
+            environment={"OPENAI_API_KEY": "not-a-secret"},
+            env={"OPENAI_API_KEY": "OPENAI_API_KEY"},
+        )
+
+
 def test_provider_settings_requires_non_empty_models() -> None:
     with pytest.raises(ValidationError):
         ProviderSettings(chat_models=[], embedding_models=[])
@@ -66,7 +91,7 @@ def test_tei_provider_settings_reject_chat_models() -> None:
 
 def test_server_settings_defaults() -> None:
     settings = ServerSettings()
-    assert settings.host == "0.0.0.0"
+    assert settings.host == "127.0.0.1"
     assert settings.port == 8000
     assert settings.reload is False
     assert settings.workers == 1
@@ -157,7 +182,7 @@ def test_settings_requires_provider_to_be_configured() -> None:
         server=ServerSettings(),
     )
 
-    with pytest.raises(BadRequestError, match="provider 'bedrock'"):
+    with pytest.raises(BadRequestError, match="provider is not configured"):
         settings.resolve_chat_provider("bedrock:gpt-4o-mini")
 
 

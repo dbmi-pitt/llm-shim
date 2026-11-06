@@ -125,10 +125,19 @@ class ChatService:
             provider_settings=provider.chat_model_settings,
             request_kwargs=create_kwargs,
         )
+        if model_settings is None:
+            model_settings = cast(ModelSettings, {})
+        if model_settings.get("max_tokens") is None:
+            security = getattr(self._settings, "security", None)
+            model_settings["max_tokens"] = getattr(security, "default_max_tokens", 1024)
 
         try:
             async with environment_override_lock:
-                with patched_environ(provider.env):
+                with patched_environ(
+                    provider.environment_overrides()
+                    if hasattr(provider, "environment_overrides")
+                    else provider.env
+                ):
                     response_text, usage = await self._run_text_model(
                         model_name=configured_model,
                         prompt=prompt,
@@ -136,9 +145,7 @@ class ChatService:
                     )
         except Exception as error:
             logger.exception("Chat completion failed for %s", configured_model)
-            raise ProviderCallError(
-                f"Provider chat completion failed: {error}"
-            ) from error
+            raise ProviderCallError("Provider chat completion failed") from error
 
         logger.info(
             "Chat completion for %s: %d input, %d output tokens",

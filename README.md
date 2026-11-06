@@ -28,18 +28,24 @@ uv sync
 cp config.example.yaml data/config.yaml
 ```
 
-3. Edit `data/config.yaml` with your providers and credentials.
+3. Edit `data/config.yaml` with provider routes only. Provider secrets are
+   environment-variable references; do not put key values in YAML.
 
-4. Start the server:
+4. Set the separate inbound-shim and upstream-provider credentials, then start
+   the server:
 
 ```bash
+export LLM_SHIM_API_KEYS='local:replace-with-a-long-random-secret'
+export OPENAI_API_KEY='provider-secret-from-your-secret-store'
 uv run main.py
 ```
 
-5. Open:
+5. Verify the authenticated API:
 
-- `http://localhost:8000/docs`
-- `http://localhost:8000/redoc`
+```bash
+curl -s http://127.0.0.1:8000/v1/models \
+  -H 'Authorization: Bearer replace-with-a-long-random-secret'
+```
 
 ## Quick Start (Docker Compose)
 
@@ -48,63 +54,62 @@ docker compose up --build
 ```
 
 `compose.yaml` mounts `./data` to `/config`, and the container reads config from `/config/config.yaml`.
+It publishes only `127.0.0.1:8000` by default. Set `LLM_SHIM_API_KEYS` in the
+shell or an orchestrator secret, never in the Compose file.
+
+## Security and deployment
+
+Native startup binds `127.0.0.1`. An external bind (including `0.0.0.0`) must
+set `security.expose_network: true` and have inbound keys loaded from
+`LLM_SHIM_API_KEYS` (`name:key,name2:key`) or a mounted key file. Environment
+settings override YAML (for example `LLM_SHIM_SERVER__HOST=127.0.0.1`).
+Anonymous access is available only with the explicit
+`security.allow_anonymous_loopback: true` development setting.
+
+Every `/v1/*` request uses `Authorization: Bearer` authentication:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/models \
+  -H 'Authorization: Bearer replace-with-a-long-random-secret'
+```
+
+Existing unauthenticated clients must add that header. `/healthz` and `/livez`
+are intentionally minimal and unauthenticated; restrict their proxy/load-
+balancer reachability separately. Docs/OpenAPI are disabled by default.
+
+For VPN or AWS, terminate TLS at a trusted proxy/ALB, allow only the proxy/ALB
+to reach the task or instance security group, and keep shim authentication on.
+Run the container with `server.host: 0.0.0.0` only with
+`security.expose_network: true` and keys configured; Docker can still publish
+only `127.0.0.1:8000`. Do not trust `X-Forwarded-*` headers unless a known
+proxy is explicitly configured. Prefer EC2/ECS IAM roles for Bedrock.
 
 ## Configuration
 
-- `providers`: a mapping of [provider names](https://ai.pydantic.dev/models/overview/) to their configuration.
-  - `chat_models`: list of allowed chat model patterns (supports wildcards, example: `gpt-*`).
-  - `embedding_models`: list of allowed embedding model patterns (supports wildcards, example: `text-embedding-3-*`).
-  - `backend`: optional embedding backend selector. Defaults to `pydantic_ai`; use `tei` for a HuggingFace Text Embeddings Inference endpoint.
-  - `chat_model_settings`: optional kwargs to pass to chat model calls. See [pydantic-ai docs](https://ai.pydantic.dev/agent/#model-run-settings) for supported settings.
-  - `embedding_model_settings`: optional kwargs to pass to embedding model calls. See [pydantic-ai docs](https://ai.pydantic.dev/embeddings/) for supported settings.
-  - `env`: environment variables to set for this provider (required for things like API keys).
-  - `tei`: required when `backend: tei`.
-    - `base_url`: TEI server base URL.
-    - `endpoint`: TEI embeddings path. Defaults to `/embed`.
-    - `auth_token_env`: optional env var name whose value is sent as `Authorization: Bearer ...`.
-    - `request_timeout_seconds`: HTTP timeout for the TEI request.
-    - `input_prefix_template`: optional template used to transform each input before sending it upstream. Use `{input}` as the placeholder.
-- `server`: FastAPI server settings.
-  - `host`: server host (default: `"0.0.0.0"`)
-  - `port`: server port (default: 8000)
-  - `reload`: enable auto-reload (default: `false`)
-  - `workers`: number of worker processes (default: `1`)
-  - `log_level`: logging level (default: `"info"`)
+Copy and edit [`config.example.yaml`](config.example.yaml); it is the canonical
+complete configuration example. Keep it in `data/config.yaml`, which is
+excluded from Docker builds and version control.
+
+- `providers` defines route IDs, allowed model patterns, provider settings, and
+  TEI endpoints.
+- `environment` contains non-secret literal provider values, such as
+  `AWS_DEFAULT_REGION: us-west-2`.
+- `env` maps a provider variable to the name of a runtime variable that holds
+  its secret, for example `OPENAI_API_KEY: OPENAI_API_KEY`.
+- `security` controls incoming-client authentication and resource limits.
+- `server.host` defaults to `127.0.0.1`. Use `0.0.0.0` only for a deliberately
+  exposed container/proxy deployment with `security.expose_network: true`.
+
+For Bedrock, prefer an EC2/ECS IAM role and retain only the non-secret region:
 
 ```yaml
-providers:
-  openai:
-    chat_models: ["gpt-*"]
-    embedding_models: ["text-embedding-3-*"]
-    chat_model_settings: {}
-    embedding_model_settings: {}
-    env:
-      OPENAI_API_KEY: "sk-..."
-
-  google-gla:
-    chat_models: ["gemini-*"]
-    embedding_models: ["gemini-embedding-*"]
-    env:
-      GOOGLE_API_KEY: "AIza..."
-
-  tei-qwen:
-    backend: tei
-    embedding_models: ["Qwen/Qwen3-Embedding-0.6B"]
-    env:
-      TEI_API_TOKEN: "optional-bearer-token"
-    tei:
-      base_url: "http://embedding-box:8080"
-      endpoint: "/embed"
-      auth_token_env: "TEI_API_TOKEN"
-      request_timeout_seconds: 30
-      input_prefix_template: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: {input}"
-
-server:
-  host: "0.0.0.0"
-  port: 8000
-  reload: false
-  workers: 1
-  log_level: "info"
+bedrock:
+  chat_models: ["us.anthropic.claude-*", "us.anthropic.claude-haiku-*"]
+  embedding_models: ["amazon.titan-embed-text-*"]
+  embedding_model_settings:
+    dimensions: 512
+  environment:
+    AWS_DEFAULT_REGION: "us-west-2"
 ```
 
 ### Routing Rules
@@ -122,6 +127,7 @@ Chat completion:
 ```bash
 curl -s http://localhost:8000/v1/chat/completions \
   -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer replace-with-a-long-random-secret' \
   -d '{
     "model": "openai:gpt-4o-mini",
     "messages": [{"role": "user", "content": "Hello, world!"}]
@@ -143,6 +149,7 @@ Invoke-RestMethod `
     -Uri "http://localhost:8000/v1/chat/completions" `
     -Method Post `
     -ContentType "application/json" `
+    -Headers @{ Authorization = "Bearer replace-with-a-long-random-secret" } `
     -Body $body
 ```
 
@@ -151,6 +158,7 @@ Embeddings:
 ```bash
 curl -s http://localhost:8000/v1/embeddings \
   -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer replace-with-a-long-random-secret' \
   -d '{
     "model": "openai:text-embedding-3-small",
     "input": "Hello, world!"
@@ -167,6 +175,7 @@ Invoke-RestMethod `
     -Uri "http://localhost:8000/v1/embeddings" `
     -Method Post `
     -ContentType "application/json" `
+    -Headers @{ Authorization = "Bearer replace-with-a-long-random-secret" } `
     -Body $body
 ```
 
@@ -175,6 +184,7 @@ TEI-backed embeddings through the shim:
 ```bash
 curl -s http://localhost:8000/v1/embeddings \
   -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer replace-with-a-long-random-secret' \
   -d '{
     "model": "tei-qwen:Qwen/Qwen3-Embedding-0.6B",
     "input": [
@@ -187,7 +197,8 @@ curl -s http://localhost:8000/v1/embeddings \
 List configured models:
 
 ```bash
-curl -s http://localhost:8000/v1/models
+curl -s http://localhost:8000/v1/models \
+  -H 'Authorization: Bearer replace-with-a-long-random-secret'
 ```
 
 ## External References
