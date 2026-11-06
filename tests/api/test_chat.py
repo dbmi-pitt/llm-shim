@@ -1,6 +1,7 @@
 """Tests for chat API endpoint error handling."""
 
-from typing import cast
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 
@@ -10,6 +11,7 @@ from llm_shim.api.schemas.openai import (
     ChatCompletionResponse,
     ChatMessage,
 )
+from llm_shim.core.config import SecuritySettings
 from llm_shim.core.exceptions import BadRequestError, ProviderCallError
 from llm_shim.services.chat import ChatService
 
@@ -43,6 +45,16 @@ async def test_chat_endpoint_returns_400_on_bad_request(
     with pytest.raises(BadRequestError, match="Invalid prompt"):
         await create_chat_completion(
             chat_request,
+            http_request=cast(
+                Any,
+                SimpleNamespace(
+                    app=SimpleNamespace(
+                        state=SimpleNamespace(
+                            settings=SimpleNamespace(security=SecuritySettings())
+                        )
+                    )
+                ),
+            ),
             service=cast(ChatService, FakeFailingChatServiceBadRequest()),
         )
 
@@ -55,5 +67,15 @@ async def test_chat_endpoint_returns_502_on_provider_error(
     with pytest.raises(ProviderCallError, match="Provider chat completion failed"):
         await create_chat_completion(
             chat_request,
+            http_request=cast(
+                Any,
+                SimpleNamespace(
+                    app=SimpleNamespace(
+                        state=SimpleNamespace(
+                            settings=SimpleNamespace(security=SecuritySettings())
+                        )
+                    )
+                ),
+            ),
             service=cast(ChatService, FakeFailingChatServiceProvider()),
         )

@@ -5,7 +5,7 @@ providers:
     chat_model_settings: {}
     embedding_model_settings: {}
     env:
-      OPENAI_API_KEY: "sk-..."
+      OPENAI_API_KEY: "OPENAI_API_KEY"
 
   azure:
     chat_models: ["gpt-*"]
@@ -13,43 +13,37 @@ providers:
     chat_model_settings: {}
     embedding_model_settings: {}
     env:
-      AZURE_OPENAI_ENDPOINT: "https://<resource>.openai.azure.com/openai/v1/"
-      AZURE_OPENAI_API_KEY: "<api-key>"
-      OPENAI_API_VERSION: "2024-12-01-preview"
+      AZURE_OPENAI_ENDPOINT: "AZURE_OPENAI_ENDPOINT"
+      AZURE_OPENAI_API_KEY: "AZURE_OPENAI_API_KEY"
+      OPENAI_API_VERSION: "OPENAI_API_VERSION"
 
   bedrock:
     chat_models: ["anthropic.claude*"]
     embedding_models: ["amazon.titan-embed-text-*"]
     chat_model_settings: {}
     embedding_model_settings: {}
+    # Non-secret provider settings may live here.
+    environment:
+      AWS_DEFAULT_REGION: "us-west-2"
+    # IAM roles are preferred. If static credentials are unavoidable, references
+    # below name runtime variables; they are not credential values.
     env:
-      AWS_ACCESS_KEY_ID: "ak-..."
-      AWS_SECRET_ACCESS_KEY: "sk-..."
-      AWS_DEFAULT_REGION: "us-east-1"
+      AWS_ACCESS_KEY_ID: "AWS_ACCESS_KEY_ID"
+      AWS_SECRET_ACCESS_KEY: "AWS_SECRET_ACCESS_KEY"
 
-  azure:
-    chat_models: ["gpt-*"]
-    embedding_models: ["text-embedding-3-*"]
-    chat_model_settings: {}
-    embedding_model_settings: {}
-    env:
-      AZURE_OPENAI_ENDPOINT: "https://<resource>.openai.azure.com/openai/v1/"
-      AZURE_OPENAI_API_KEY: "<api-key>"
-      OPENAI_API_VERSION: "2024-12-01-preview"
-      
   google-gla:
     chat_models: ["gemini-*"]
     embedding_models: ["gemini-embedding-*"]
     chat_model_settings: {}
     embedding_model_settings: {}
     env:
-      GOOGLE_API_KEY: "AIza..."
+      GOOGLE_API_KEY: "GOOGLE_API_KEY"
 
   tei-qwen:
     backend: tei
     embedding_models: ["Qwen/Qwen3-Embedding-0.6B"]
     env:
-      TEI_API_TOKEN: "optional-bearer-token"
+      TEI_API_TOKEN: "TEI_API_TOKEN"
     tei:
       base_url: "http://embedding-box:8080"
       endpoint: "/embed"
@@ -58,8 +52,16 @@ providers:
       input_prefix_template: "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery: {input}"
 
 server:
-  host: "0.0.0.0"
+  host: "127.0.0.1"
   port: 8000
   reload: false
   workers: 1
   log_level: "info"
+
+# Key values are read from LLM_SHIM_API_KEYS (for example
+# "workstation:replace-with-secret") or security.api_keys_file, never this file.
+security:
+  allow_anonymous_loopback: false
+  docs_enabled: false
+  max_concurrent_requests: 8
+  request_timeout_seconds: 120

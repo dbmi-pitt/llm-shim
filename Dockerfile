@@ -1,6 +1,6 @@
-FROM alpine:3.23 AS python-builder
+FROM alpine:3.23.3 AS python-builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /uvx /bin/
 
 ENV UV_PYTHON=3.14 \
     UV_COMPILE_BYTECODE=1 \
@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml,ro \
     uv sync --frozen --no-dev
 
-FROM alpine:3.23
+FROM alpine:3.23.3
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -44,12 +44,16 @@ WORKDIR /app
 COPY --from=python-builder /python /python
 COPY --from=python-builder /opt/venv /opt/venv
 
-COPY . /app
+COPY main.py /app/main.py
+COPY src /app/src
 
-RUN mkdir -p /config
+RUN addgroup -S llmshim && adduser -S -G llmshim llmshim \
+    && mkdir -p /config && chown -R llmshim:llmshim /app /config
 
 VOLUME ["/config"]
 
 EXPOSE 8000
+
+USER llmshim
 
 CMD ["python", "/app/main.py"]

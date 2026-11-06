@@ -83,8 +83,7 @@ class EmbeddingsService:
         auth_token = os.getenv(tei_settings.auth_token_env)
         if not auth_token:
             raise BadRequestError(
-                "TEI auth token env var "
-                f"'{tei_settings.auth_token_env}' is not set"
+                f"TEI auth token env var '{tei_settings.auth_token_env}' is not set"
             )
         headers["Authorization"] = f"Bearer {auth_token}"
         return headers
@@ -116,10 +115,7 @@ class EmbeddingsService:
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as error:
-            detail = error.response.text.strip()
             message = f"TEI request failed with status {error.response.status_code}"
-            if detail:
-                message = f"{message}: {detail}"
             raise ProviderCallError(message) from error
 
         try:
@@ -181,7 +177,11 @@ class EmbeddingsService:
 
         try:
             async with environment_override_lock:
-                with patched_environ(provider.env):
+                with patched_environ(
+                    provider.environment_overrides()
+                    if hasattr(provider, "environment_overrides")
+                    else provider.env
+                ):
                     if provider.backend == "tei":
                         if request.dimensions is not None:
                             raise BadRequestError(
@@ -205,7 +205,7 @@ class EmbeddingsService:
             raise
         except Exception as error:
             logger.exception("Embeddings failed for %s", configured_model)
-            raise ProviderCallError(f"Provider embeddings failed: {error}") from error
+            raise ProviderCallError("Provider embeddings failed") from error
 
         logger.info(
             "Embeddings for %s: %d input tokens",
